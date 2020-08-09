@@ -34,7 +34,10 @@ def check_string(s):
 
 
 def create_payload(data):
-    return {'fields': data}
+    if type(data) == dict:
+        return {'fields': data}
+    elif type(data) == list:
+        return {'records': data}
 
 
 class Airtable(object):

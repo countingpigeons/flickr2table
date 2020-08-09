@@ -2,7 +2,6 @@ from counting_pigeons_config import FlickrConfig
 from requests_oauthlib import OAuth1Session
 import json
 from datetime import datetime, timedelta
-import sys
 import argparse
 import re
 
@@ -131,6 +130,8 @@ def create_album_output(run_date, album_name: str, backfill=False) -> str:
         if photo['lastupdate'] > album_latest_photo_update:
             album_latest_photo_update = photo['lastupdate']
         photo_id = photo['id']
+        photo['datetaken'] = datetime.strptime(
+            photo['datetaken'], '%Y-%m-%d %H:%M:%S').date().strftime('%Y-%m-%d')
         photo['dateupload'] = datetime.fromtimestamp(
             int(photo['dateupload'])).date().strftime('%Y-%m-%d')
         photo['lastupdate'] = datetime.fromtimestamp(
@@ -148,9 +149,22 @@ def create_album_output(run_date, album_name: str, backfill=False) -> str:
         fresh = datetime.strptime(
             clean_photo['lastupdate'], '%Y-%m-%d') > cutoff
         tbd = re.search('tbd', clean_photo['title'])
-        if fresh and not tbd:
+
+        if fresh and not tbd:  # add pricey columns only for those we'll send
             clean_photo['description'] = get_photo_info_json(
                 photo_id, 'description')
+            latitude, longitude = photo['latitude'], photo['longitude']
+            if not (latitude == 0 and longitude == 0):
+                google_map_url = (
+                    f"https://www.google.com/maps/?q={latitude},{longitude}")
+                clean_photo['google_map_url'] = google_map_url
+                clean_photo['coordinates'] = (f"{latitude}, {longitude}")
+            else:
+                clean_photo['latitude'] = ''
+                clean_photo['longitude'] = ''
+                clean_photo['google_map_url'] = ''
+                clean_photo['coordinates'] = ''
+
             filtered_album_photos.append(clean_photo)
 
     album['photos'] = filtered_album_photos
@@ -201,45 +215,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
-
-# print(pretty_json(get_albums_json(user_id)))
-
-# photo_title = photo['title']
-# photo_id = photo['id']
-# photo_tags = photo['tags']
-# photo_tags_list = photo_tags.replace('0', ':').split(' ')
-# photo_taken = photo['datetaken']
-
-# print(photo_title, photo_id, photo_description, photo_tags, photo_taken, photo_tags_list)
-# print(pretty_json(album_photos))
-
-# print(pretty_json(album_photos_json))
-
-
-# if photo_title == 'IMG-20160607-00292':
-#     photo_url = photo['url_o']
-#     r = oauth.get(photo_url)
-#     if r.status_code == 999:
-#         with open(photo_title, 'wb') as f:
-#             for chunk in r.iter_content(1024):
-#                 f.write(chunk)
-#         print('wrote file')
-
-# jdnlogan photo "id" = 30239296361
-# template for "flickr_link": "https://www.flickr.com/photos/karenoffereins/49692485441/in/album-72157714042432652/"
-
-
-# for photoset in response.get('photosets')['photoset']:
-#     title = photoset['title']['_content']
-#     id = photoset['id']
-#     num_photos = photoset['photos']
-#     date_create = photoset['date_create']
-#     # print(photoset['title']['_content'])
-#     print(f'{id} ({title}) [{num_photos} photos]')
-#     print(date_create)
-#     print(datetime.fromtimestamp(int(date_create)))
-# print(help(datetime))
-
-# https://www.flickr.com/photos/41064584@N03/30209004042/
-# https://www.flickr.com/photos/41064584@N03/30209004042/in/album-72157671703751344/
