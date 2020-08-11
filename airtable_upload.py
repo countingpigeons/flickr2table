@@ -9,6 +9,8 @@ TODO:
     5.1) if backfill, for each record in airtable, delete.
 6.) user documentation. e.g. - to freeze records, change/delete Flickr_id col.
 7.) add logging.
+8.) before pop() the first line of description as Genus+Species, check if it
+    has an =. If so, don't pop. Let process begin parsing codes.
 
 LOG:
 2020-08-10: first production version.
@@ -40,7 +42,10 @@ def parse_description(description: str = 'No description given.') -> dict:
     lines = description.splitlines()
 
     if lines:
-        new_dict['Genus + Species'] = lines.pop(0).rstrip('.')
+        # if first line has =, don't steal as title,
+        # unless it also has a period preceding the =, so just missing \n'
+        if (not re.search(r'=', lines[0])) or (re.search(r'\..+=', lines[0])):
+            new_dict['Genus + Species'] = lines.pop(0).rstrip('.')
         for line in lines:
             match = re.search(r'(.+)=(.+)', line)
             if match:
