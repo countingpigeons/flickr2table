@@ -104,8 +104,9 @@ def get_photo_info_json(photo_id, feature=None):
         return response
 
 
-def create_album_output(run_date, album_name: str, backfill=False) -> str:
-    cutoff_7_days = datetime.today()-timedelta(days=7)
+def create_album_output(run_date, album_name: str, backfill=False,
+                        window_days: int = 1) -> str:
+    cutoff_days = datetime.today()-timedelta(days=window_days)
     user_id = get_user_id()
     album_id, album_title, album_num_photos, album_created, album_updated =\
         get_album_details(user_id, album_name)
@@ -144,7 +145,7 @@ def create_album_output(run_date, album_name: str, backfill=False) -> str:
         if backfill:
             cutoff = datetime.strptime('2010-01-01', '%Y-%m-%d')
         else:
-            cutoff = cutoff_7_days
+            cutoff = cutoff_days
 
         fresh = datetime.strptime(
             clean_photo['lastupdate'], '%Y-%m-%d') > cutoff
@@ -183,11 +184,15 @@ def create_album_output(run_date, album_name: str, backfill=False) -> str:
     return pretty_json(album)
 
 
-def write_album_output(run_date, album_name, album):
-    base_file_name = 'flickr_album_{}_{}.json'
+def write_album_output(run_date, album_name, album, backfill=False):
+    base_file_name = 'flickr_album_{}_{}'
     file_path = '/home/koya/datascience/flickr_to_airtable/flickr_exports/'
     file_name = base_file_name.format(album_name, run_date)
+    if backfill:
+        file_name = file_name + '__full'
+    file_name = file_name + '.json'
     full_path = file_path + file_name
+    print(full_path)
     with open(full_path, 'w') as f:
         f.write(album)
         print(f'wrote album to: {full_path}')
@@ -204,11 +209,16 @@ def main():
                         default='Flora')
     parser.add_argument("--backfill", help="import all photos from album",
                         action="store_true")
+    parser.add_argument("--window",
+                        help="last # days of updates to include. default 3",
+                        type=int, default=3)
     args = parser.parse_args()
     # print(f'album_name: {args.album_name}, backfill: {args.backfill}')
 
-    album = create_album_output(run_date, args.album_name, args.backfill)
-    export_success = write_album_output(run_date, args.album_name, album)
+    album = create_album_output(
+        run_date, args.album_name, args.backfill, args.window)
+    export_success = write_album_output(
+        run_date, args.album_name, album, args.backfill)
 
     return export_success
 

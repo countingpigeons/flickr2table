@@ -86,7 +86,7 @@ class Airtable(object):
             url = table_name
             if limit and check_integer(limit):
                 params.update({'pageSize': limit})
-            if offset and check_string(offset):
+            if offset:  # and check_string(offset): # this is a byte-string!
                 params.update({'offset': offset})
             if filter_by_formula is not None:
                 params.update({'filterByFormula': filter_by_formula})
@@ -139,6 +139,7 @@ class Airtable(object):
     def create(self, table_name, data):
         if check_string(table_name):
             payload = create_payload(data)
+            # print(json.dumps(payload, indent=2, sort_keys=True))
             return self.__request('POST', table_name,
                                   payload=json.dumps(payload))
 

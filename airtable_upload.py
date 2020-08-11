@@ -1,9 +1,25 @@
+'''
+TODO:
+1.) add additional INSERT block which checks if Flickr_id was deleted but not
+    re-inserted. If so, process these inserts again w/out parsing the
+    description field. Set columns to "Failed to Parse" or "ERROR"
+3.) re-factor to UPDATE records that have changed, instead of deleting and
+    inserting these. not essential.
+5.) add a bulk delete and backfill once per week to scheduler.
+    5.1) if backfill, for each record in airtable, delete.
+6.) user documentation. e.g. - to freeze records, change/delete Flickr_id col.
+7.) add logging.
+
+LOG:
+2020-08-10: first production version.
+'''
+
 from datetime import datetime
 import time
+import os.path as path
 import argparse
 import json
 import re
-# import os.path as path
 from counting_pigeons_config import AirTableConfig
 import airtable as at
 
@@ -14,28 +30,32 @@ airtable = at.Airtable(base_id, apikey, dict)
 table_name = 'FLORA'
 
 
-return_status = 0
-
-
 def pretty_json(dict):
     pretty_string = json.dumps(dict, indent=2, sort_keys=True)
     return pretty_string
 
 
-def parse_description(description: str = '') -> dict:
-    if not description:
-        description = 'Ribes sanguineum var. glutinosum.\nCommon Names = Pink-flowered Currant, Blood Currant, Southern pink flowering currant.\nFamily = Grossulariaceae.\nFamily Name = Currant and Gooseberry.\nType = Flowering Plant.\nColor(s) = Pink.\nPetal(s) = 5.\nPrimo Location = Golden Gate Park.\nSecundo Location = AIDS Memorial Grove creek bed.'
+def parse_description(description: str = 'No description given.') -> dict:
     new_dict = {}
     lines = description.splitlines()
 
-    scientific_name = lines.pop(0).rstrip('.')
-    new_dict['Genus + Species'] = scientific_name
-    for line in lines:
-        match = re.search(r'(.+)=(.+)', line)
-        if match:
-            key = match.groups()[0].strip()
-            value = match.groups()[1].strip().rstrip('.')
-            new_dict[key] = value
+    if lines:
+        new_dict['Genus + Species'] = lines.pop(0).rstrip('.')
+        for line in lines:
+            match = re.search(r'(.+)=(.+)', line)
+            if match:
+                key = match.groups()[0].strip()
+                value = match.groups()[1].strip().rstrip('.')
+                multiselect_columns = ['Color(s)']
+                if key in multiselect_columns:
+                    new_dict[key] = [item.strip().rstrip('.')
+                                     for item in value.split(',')]
+                else:
+                    new_dict[key] = value
+                # fix bad data
+                if key == 'Secundo Location':
+                    new_dict['Secondo Location'] = value
+                    del new_dict[key]
     return new_dict
 
 
@@ -44,85 +64,119 @@ def camel_case_split(str):
         return str.rstrip('.')
     else:
         return ' '.join(re.findall(
-            r'[A-Z](?:[a-z-]+|[A-Z]*(?=[A-Z]|$))', str)).rstrip('.')
+            r'[A-Z](?:[a-z-\?]+|[A-Z]*(?=[A-Z]|$))', str)).rstrip('.')
 
 
-run_date = '2020-08-09'  # datetime.today().date().strftime('%Y-%m-%d')
-parser = argparse.ArgumentParser()
-parser.add_argument("--album_name",
-                    help="name as it appears in Flickr UI' "
-                    "(default \'Flora\')",
-                    default='Flora')
-parser.add_argument("--backfill", help="import all photos from album",
-                    action="store_true")
-args = parser.parse_args()
+def main():
+    # run_date = '2020-08-06'
+    run_date = datetime.today().date().strftime('%Y-%m-%d')
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--album_name",
+                        help="name as it appears in Flickr UI' "
+                        "(default \'Flora\')",
+                        default='Flora')
+    parser.add_argument("--backfill", help="import all photos from album",
+                        action="store_true")
+    args = parser.parse_args()
 
+    directory = 'flickr_exports/'
+    file_name = f'flickr_album_{args.album_name}_{run_date}'
+    if args.backfill:
+        file_name = file_name + '__full'
+    file_name = file_name + '.json'
 
-directory = 'flickr_exports/'
-file_name = f'flickr_album_{args.album_name}_{run_date}'
-if args.backfill:
-    file_name = file_name + '_full'
-file_name = file_name + '.json'
+    try:
+        with open(directory+file_name, 'r') as f:
+            contents = json.loads(f.read())
+        return_status = 1
+    except FileNotFoundError as e:
+        print(f'file not found. error: {e}')
+        raise(e)
+        return_status = 0
 
-try:
-    with open(directory+file_name, 'r') as f:
-        contents = json.loads(f.read())
-    return_status = 1
-except FileNotFoundError as e:
-    print(f'file not found. error: {e}')
-    raise(e)
-    return_status = 0
+    master_dict = {}
+    for photo in contents['photos']:
+        title = photo['title']
+        flickr_id = photo['id']
+        download_url = photo['url_o']
+        flickr_description = photo['description']
+        flickr_raw_tags = photo['tags']
+        flickr_tags = flickr_raw_tags.split(' ')
+        prefix_primary_photo = '1' if 'primary' in flickr_tags else '2'
+        download_filename = (prefix_primary_photo
+                             + '_'
+                             + path.basename(download_url))
+        this_dict = {title: {
+            'num_photos': 1,
+            'lowest_flickr_id': flickr_id,
+            'flickr_ids': [flickr_id],
+            'flickr_id_to_use': flickr_id,
+            'Image(s)': [{'url': download_url, 'filename': download_filename}],
+            'Map Link': photo['google_map_url'],
+            'Coordinates': photo['coordinates'],
+            'Date Seen': photo['datetaken'],
+            'Flickr_description': flickr_description,
+            'Flickr Link': photo['flickr_url'],
+            'Flickr_tags': flickr_raw_tags,
+            'Common Name': camel_case_split(title)
+        }}
 
-master_dict = {}
-for photo in contents['photos']:
-    title = photo['title']
-    flickr_id = photo['id']
-    download_url = photo['url_o']
-    flickr_description = photo['description']
-    this_dict = {title: {
-        'num_photos': 1,
-        'lowest_flickr_id': flickr_id,
-        'flickr_ids': [flickr_id],
-        'flickr_id_to_use': flickr_id,
-        'Image(s)': [{'url': download_url}],
-        'Map Link': photo['google_map_url'],
-        'Coordinates': photo['coordinates'],
-        'Date Seen': photo['datetaken'],
-        'Flickr_description': flickr_description,
-        'Flickr Link': photo['flickr_url'],
-        'Common Name': camel_case_split(title),  # process: split on CAP, join w/ ' '
+        parsed_tags = parse_description(this_dict[title]['Flickr_description'])
+        this_dict[title].update(parsed_tags)
 
-    }}
-    parsed_tags = parse_description(this_dict[title]['Flickr_description'])
-    this_dict[title].update(parsed_tags)
-    if title in master_dict:
-        master_dict[title]['num_photos'] += 1
-        master_dict[title]['Image(s)'].append({'url': download_url})
-        master_dict[title]['Image(s)'].sort(key=lambda x: x['url'])  # url should sort by flickrid
-        if master_dict[title]['lowest_flickr_id'] > flickr_id:
-            master_dict[title]['lowest_flickr_id'] = flickr_id
-        master_dict[title]['flickr_ids'].append(flickr_id)
-        master_dict[title]['flickr_ids'].sort()
-        master_dict[title]['flickr_id_to_use'] = '_'.join(
-            master_dict[title]['flickr_ids'])
+        if title in master_dict:
+            master_dict[title]['num_photos'] += 1
+            master_dict[title]['Image(s)'].append(
+                {'url': download_url, 'filename': download_filename})
+            master_dict[title]['Image(s)'].sort(
+                key=lambda x: (x['filename'], x['url']))
+            if master_dict[title]['lowest_flickr_id'] > flickr_id:
+                master_dict[title]['lowest_flickr_id'] = flickr_id
+            master_dict[title]['flickr_ids'].append(flickr_id)
+            master_dict[title]['flickr_ids'].sort()
+            master_dict[title]['flickr_id_to_use'] = '_'.join(
+                master_dict[title]['flickr_ids'])
 
+        else:
+            master_dict.update(this_dict)
+
+        # print(pretty_json(master_dict))
+    flickr_delete_ids = []
+    for name, fields in master_dict.items():
+        flickr_delete_ids.append(fields['flickr_id_to_use'])
+
+    airtable_ids = {}
+    airtable_records = airtable.iterate(table_name)
+
+    for record in airtable_records:
+        flickr_id = record['fields']['Flickr_id']
+        airtable_id = record['id']
+        airtable_ids[flickr_id] = airtable_id
+
+    if args.backfill:
+        airtable_delete_ids = list(airtable_ids.values())
     else:
-        master_dict.update(this_dict)
+        airtable_delete_ids = [
+            val for key, val in airtable_ids.items()
+            if key in flickr_delete_ids]
 
-# print(pretty_json(master_dict))
+    for record_id in airtable_delete_ids:
+        delete_response = airtable.delete(table_name, record_id)
+        print(delete_response)
+        time.sleep(.20)
+
+     # final scrub - split out to allow debug
+    for name, record in master_dict.items():
+        record['Flickr_id'] = record['flickr_id_to_use']
+        del record['flickr_id_to_use']
+        del record['flickr_ids']
+        del record['num_photos']
+        del record['lowest_flickr_id']
+
+        upload = airtable.create(table_name, data=record)
+        print(f"uploaded: {upload['id']}")
+        time.sleep(.20)
 
 
-# for name, record in master_dict.items():
-    # delete these records on airtable
-
-    # final scrub - split out to allow debug
-for name, record in master_dict.items():
-    record['Flickr_id'] = record['flickr_id_to_use']
-    del record['flickr_id_to_use']
-    del record['flickr_ids']
-    del record['num_photos']
-    del record['lowest_flickr_id']
-
-    upload = airtable.create(table_name, data=record)
-    time.sleep(.25)
-# print(pretty_json(master_dict))
+if __name__ == '__main__':
+    main()
