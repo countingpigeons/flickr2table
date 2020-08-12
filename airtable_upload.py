@@ -53,8 +53,9 @@ def parse_description(description: str = 'No description given.') -> dict:
                 value = match.groups()[1].strip().rstrip('.')
                 multiselect_columns = ['Color(s)']
                 if key in multiselect_columns:
-                    new_dict[key] = [item.strip().rstrip('.')
-                                     for item in value.split(',')]
+                    if value != '':
+                        new_dict[key] = [item.strip().rstrip('.')
+                                         for item in value.split(',')]
                 else:
                     new_dict[key] = value
                 # fix bad data
@@ -154,9 +155,12 @@ def main():
     airtable_records = airtable.iterate(table_name)
 
     for record in airtable_records:
-        flickr_id = record['fields']['Flickr_id']
-        airtable_id = record['id']
-        airtable_ids[flickr_id] = airtable_id
+        # Fixed. Ignore empty/bad rows in airtable.
+        if 'fields' in record:
+            if 'Flickr_id' in record['fields']:
+                flickr_id = record['fields']['Flickr_id']
+                airtable_id = record['id']
+                airtable_ids[flickr_id] = airtable_id
 
     if args.backfill:
         airtable_delete_ids = list(airtable_ids.values())
@@ -179,7 +183,7 @@ def main():
         del record['lowest_flickr_id']
 
         upload = airtable.create(table_name, data=record)
-        print(f"uploaded: {upload['id']}")
+        print(f"uploaded: {upload['id']}, flickr name: {name}")
         time.sleep(.20)
 
 
