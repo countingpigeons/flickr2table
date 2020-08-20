@@ -1,4 +1,4 @@
-from counting_pigeons_config import FlickrConfig
+from config import FlickrConfig
 from requests_oauthlib import OAuth1Session
 import json
 from datetime import datetime, timedelta

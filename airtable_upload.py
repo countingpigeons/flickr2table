@@ -22,7 +22,7 @@ import os.path as path
 import argparse
 import json
 import re
-from counting_pigeons_config import AirTableConfig
+from config import AirTableConfig
 import airtable as at
 
 
