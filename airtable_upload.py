@@ -85,7 +85,7 @@ def main():
                         action="store_true")
     args = parser.parse_args()
 
-    directory = 'flickr_exports/'
+    directory = '/home/koya/datascience/flickr_to_airtable/flickr_exports/'
     file_name = f'flickr_album_{args.album_name}_{run_date}'
     if args.backfill:
         file_name = file_name + '__full'
