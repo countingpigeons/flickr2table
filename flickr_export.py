@@ -11,8 +11,8 @@ json_url_suffix = '&format=json&nojsoncallback=1'
 oauth = OAuth1Session(
     client_secret=FlickrConfig.secret,
     client_key=FlickrConfig.apikey,
-    resource_owner_key=FlickrConfig.resource_owner_key_karen,
-    resource_owner_secret=FlickrConfig.resource_owner_secret_karen)
+    resource_owner_key=FlickrConfig.resource_owner_key,
+    resource_owner_secret=FlickrConfig.resource_owner_secret)
 
 
 def api_call(method: str, params: dict = {}) -> json:

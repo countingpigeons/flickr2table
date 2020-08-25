@@ -9,8 +9,6 @@ TODO:
     5.1) if backfill, for each record in airtable, delete.
 6.) user documentation. e.g. - to freeze records, change/delete Flickr_id col.
 7.) add logging.
-8.) before pop() the first line of description as Genus+Species, check if it
-    has an =. If so, don't pop. Let process begin parsing codes.
 
 LOG:
 2020-08-10: first production version.
