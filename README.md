@@ -14,6 +14,10 @@ This implementation looks at a "Flora" album of flowers & plants my girlfriend a
   * Create a config.py file with API keys and other info referenced in code.
   * Using the flickr_authenticate module here (or another using Oauth1), get an access token/secret pair for the Flickr account that owns the album of interest. 
 
+#### Daily Process:
+  * "python flickr_export.py --album_name Flora --window 1" creates .json file named with today's date in a flickr_exports folder.
+  * "python airtable_upload.py --album_name Flora" parses and ingests this .json file to airtable.
+  
 ## How photos appear on Flickr
 Album View | Title and Description of a Single Photo
 ------------ | -------------
