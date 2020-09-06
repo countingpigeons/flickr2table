@@ -148,7 +148,7 @@ def create_album_output(run_date, album_name: str, backfill=False,
             cutoff = cutoff_days
 
         fresh = datetime.strptime(
-            clean_photo['lastupdate'], '%Y-%m-%d') > cutoff
+            clean_photo['lastupdate'], '%Y-%m-%d') >= cutoff
         tbd = re.search('tbd', clean_photo['title'])
 
         if fresh and not tbd:  # add pricey columns only for those we'll send
