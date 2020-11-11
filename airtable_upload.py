@@ -11,6 +11,7 @@ TODO:
 7.) add logging.
 
 LOG:
+2020-11-11: delete old single versions of newly joined multi-pic flower.
 2020-08-10: first production version.
 '''
 
@@ -144,10 +145,16 @@ def main():
         else:
             master_dict.update(this_dict)
 
-        # print(pretty_json(master_dict))
+    # print(pretty_json(master_dict))
+    # return
+
     flickr_delete_ids = []
     for name, fields in master_dict.items():
-        flickr_delete_ids.append(fields['flickr_id_to_use'])
+        delete_id = fields['flickr_id_to_use']
+        flickr_delete_ids.append(delete_id)
+        if delete_id.find('_') > 0:
+            delete_ids = delete_id.split('_')
+            flickr_delete_ids.extend(delete_ids)
 
     airtable_ids = {}
     airtable_records = airtable.iterate(table_name)
@@ -181,6 +188,7 @@ def main():
         del record['lowest_flickr_id']
 
         upload = airtable.create(table_name, data=record)
+        # TO DO: add try/except. If id line fails, print {name} failed.
         print(f"uploaded: {upload['id']}, flickr name: {name}")
         time.sleep(.20)
 

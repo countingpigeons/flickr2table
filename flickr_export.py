@@ -106,8 +106,11 @@ def get_photo_info_json(photo_id, feature=None):
 
 def create_album_output(run_date, album_name: str, backfill=False,
                         window_days: int = 1) -> str:
-    cutoff_days = datetime.today()-timedelta(days=window_days)
+    clean_photos = []
+    album = {}
+    cutoff = (datetime.today()-timedelta(days=window_days)).date()
     user_id = get_user_id()
+
     album_id, album_title, album_num_photos, album_created, album_updated =\
         get_album_details(user_id, album_name)
     photos_per_page = 200
@@ -115,6 +118,7 @@ def create_album_output(run_date, album_name: str, backfill=False,
     if photos_per_page * pages < album_num_photos:
         pages += 1
     album_photos = []
+    album_latest_photo_update = '0'
     for page in range(1, pages+1):
         page_photos = get_album_photos_json(
             user_id,
@@ -122,12 +126,33 @@ def create_album_output(run_date, album_name: str, backfill=False,
             per_page=photos_per_page,
             page=page)['photo']
         album_photos.extend(page_photos)
-    keys = ['datetaken', 'dateupload', 'id', 'lastupdate',
-            'latitude', 'longitude', 'tags', 'title', 'url_o', 'flickr_url']
-    filtered_album_photos = []
-    album = {}
-    album_latest_photo_update = '0'
-    for photo in album_photos:
+
+    def not_tba(photo):
+        return not(re.search('tbd', photo['title']))
+
+    def fresh(photo):
+        return datetime.fromtimestamp(int(photo['lastupdate'])).date() > cutoff
+
+    album_photos = list(filter(not_tba, album_photos))
+
+    filtered_photos = []
+    fresh_photos = []
+    titles = []
+
+    if backfill:
+        filtered_photos = album_photos
+    else:
+        fresh_photos = list(filter(fresh, album_photos))
+        for photo in fresh_photos:
+            titles.append(photo['title'])
+        titles = set(titles)
+        filtered_photos = list(filter(lambda x: x['title'] in titles,
+                                      album_photos))
+
+    clean_keys = ['datetaken', 'dateupload', 'id', 'lastupdate',
+                  'latitude', 'longitude', 'tags', 'title', 'url_o', 'flickr_url',
+                  'description', 'google_map_url', 'coordinates']
+    for photo in filtered_photos:
         if photo['lastupdate'] > album_latest_photo_update:
             album_latest_photo_update = photo['lastupdate']
         photo_id = photo['id']
@@ -139,42 +164,27 @@ def create_album_output(run_date, album_name: str, backfill=False,
             int(photo['lastupdate'])).date().strftime('%Y-%m-%d')
         flickr_in_album_base_url = ('https://www.flickr.com/photos/{}/'
                                     '{}/in/album-{}/')
-        photo['flickr_url'] = \
-            flickr_in_album_base_url.format(user_id, photo_id, album_id)
-        clean_photo = {mykey: photo[mykey] for mykey in keys}
-        if backfill:
-            cutoff = datetime.strptime('2010-01-01', '%Y-%m-%d')
+        photo['flickr_url'] = flickr_in_album_base_url.format(
+            user_id, photo_id, album_id)
+        photo['description'] = get_photo_info_json(
+            photo_id, 'description')
+        latitude, longitude = photo['latitude'], photo['longitude']
+        if not (latitude == 0 and longitude == 0):
+            google_map_url = (
+                f"https://www.google.com/maps/?q={latitude},{longitude}")
+            photo['google_map_url'] = google_map_url
+            photo['coordinates'] = (f"{latitude}, {longitude}")
         else:
-            cutoff = cutoff_days
-
-        fresh = datetime.strptime(
-            clean_photo['lastupdate'], '%Y-%m-%d') >= cutoff
-        tbd = re.search('tbd', clean_photo['title'])
-
-        if fresh and not tbd:  # add pricey columns only for those we'll send
-            clean_photo['description'] = get_photo_info_json(
-                photo_id, 'description')
-            latitude, longitude = photo['latitude'], photo['longitude']
-            if not (latitude == 0 and longitude == 0):
-                google_map_url = (
-                    f"https://www.google.com/maps/?q={latitude},{longitude}")
-                clean_photo['google_map_url'] = google_map_url
-                clean_photo['coordinates'] = (f"{latitude}, {longitude}")
-            else:
-                clean_photo['latitude'] = ''
-                clean_photo['longitude'] = ''
-                clean_photo['google_map_url'] = ''
-                clean_photo['coordinates'] = ''
-
-            filtered_album_photos.append(clean_photo)
-
-    album['photos'] = filtered_album_photos
+            photo['latitude'] = ''
+            photo['longitude'] = ''
+            photo['google_map_url'] = ''
+            photo['coordinates'] = ''
+        clean_photo = {mykey: photo[mykey] for mykey in clean_keys}
+        clean_photos.append(clean_photo)
+    album['photos'] = clean_photos
     album['id'] = album_id
     album['title'] = album_title
-    if backfill:
-        album['num_photos'] = album_num_photos
-    else:
-        album['num_photos'] = len(album['photos'])
+    album['num_photos'] = len(album['photos'])
     album['created'] = album_created
     album['updated'] = album_updated
     album['run_date'] = run_date
