@@ -148,14 +148,6 @@ def main():
     # print(pretty_json(master_dict))
     # return
 
-    flickr_delete_ids = []
-    for name, fields in master_dict.items():
-        delete_id = fields['flickr_id_to_use']
-        flickr_delete_ids.append(delete_id)
-        if delete_id.find('_') > 0:
-            delete_ids = delete_id.split('_')
-            flickr_delete_ids.extend(delete_ids)
-
     airtable_ids = {}
     airtable_records = airtable.iterate(table_name)
 
@@ -166,6 +158,23 @@ def main():
                 flickr_id = record['fields']['Flickr_id']
                 airtable_id = record['id']
                 airtable_ids[flickr_id] = airtable_id
+
+    flickr_delete_ids = []
+    # delete those to be re-inserted and any singles that may now be grouped
+    for name, fields in master_dict.items():
+        delete_id = fields['flickr_id_to_use']
+        flickr_delete_ids.append(delete_id)
+        if delete_id.find('_') > 0:
+            delete_ids = delete_id.split('_')
+            flickr_delete_ids.extend(delete_ids)
+    # delete those lingering groups that are now split or re-grouped elsewhere
+    for flickr_id, airtable_id in airtable_ids.items():
+        if flickr_id.find('_') > 0:
+            flickr_ids = flickr_id.split('_')
+            flickr_ids = list(filter(lambda x: x in flickr_delete_ids,
+                                     flickr_ids))
+            if flickr_ids and flickr_id not in flickr_delete_ids:
+                flickr_delete_ids.append(flickr_id)
 
     if args.backfill:
         airtable_delete_ids = list(airtable_ids.values())
@@ -179,7 +188,7 @@ def main():
         print(delete_response)
         time.sleep(.20)
 
-     # final scrub - split out to allow debug
+    # final scrub - split out to allow debug
     for name, record in master_dict.items():
         record['Flickr_id'] = record['flickr_id_to_use']
         del record['flickr_id_to_use']
