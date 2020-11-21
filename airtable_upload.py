@@ -69,7 +69,7 @@ def camel_case_split(str):
         return str.rstrip('.')
     else:
         return ' '.join(re.findall(
-            r'[A-Z](?:[a-z-\?]+|[A-Z]*(?=[A-Z]|$))', str)).rstrip('.')
+            r'[A-Z](?:[a-z-\?\u2019]+|[A-Z]*(?=[A-Z]|$))', str)).rstrip('.')
 
 
 def main():
