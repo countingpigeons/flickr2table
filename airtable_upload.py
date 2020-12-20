@@ -38,7 +38,7 @@ def pretty_json(dict):
 
 def parse_description(description: str = 'No description given.') -> dict:
     new_dict = {}
-    lines = description.splitlines()
+    lines = description.replace('&quot;', '"').splitlines()
 
     if lines:
         # if first line has =, don't steal as title,
