@@ -65,11 +65,13 @@ def parse_description(description: str = 'No description given.') -> dict:
 
 
 def camel_case_split(str):
-    if re.search(' ', str):
-        return str.rstrip('.')
-    else:
-        return ' '.join(re.findall(
-            r'[A-Z](?:[a-z-\?\u2019]+|[A-Z]*(?=[A-Z]|$))', str)).rstrip('.')
+    return str.rstrip('.')
+
+#    if re.search(' ', str):
+#        return str.rstrip('.')
+#    else:
+#        return ' '.join(re.findall(
+#            r'[A-Z](?:[a-z-\?\u2019]+|[A-Z]*(?=[A-Z]|$))', str)).rstrip('.')
 
 
 def main():
