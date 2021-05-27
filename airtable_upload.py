@@ -103,9 +103,10 @@ def main():
 
     master_dict = {}
     for photo in contents['photos']:
-        title = photo['title']
+        original_title = photo['title']
+        title = photo['title'].strip('?')  # group ?/non-? versions
         flickr_id = photo['id']
-        download_url = photo['url_o']
+        download_url = photo['url_s']
         flickr_description = photo['description']
         flickr_raw_tags = photo['tags']
         flickr_tags = flickr_raw_tags.split(' ')
@@ -122,13 +123,16 @@ def main():
             'Map Link': photo['google_map_url'],
             'Coordinates': photo['coordinates'],
             'Date Seen': photo['datetaken'],
-            'Flickr_description': flickr_description,
+            # Stop setting this large column (for space concerns)
+            # 'Flickr_description': flickr_description,
             'Flickr Link': photo['flickr_url'],
             'Flickr_tags': flickr_raw_tags,
-            'Common Name': camel_case_split(title)
+            'Common Name': camel_case_split(original_title)
         }}
 
-        parsed_tags = parse_description(this_dict[title]['Flickr_description'])
+        # Add all the dynamic Parsed tags
+        parsed_tags = parse_description(flickr_description)
+        # parsed_tags = parse_description(this_dict[title]['Flickr_description'])
         this_dict[title].update(parsed_tags)
 
         if title in master_dict:
@@ -143,12 +147,13 @@ def main():
             master_dict[title]['flickr_ids'].sort()
             master_dict[title]['flickr_id_to_use'] = '_'.join(
                 master_dict[title]['flickr_ids'])
-
+            # always prefer non-? common name if mixed group
+            if (re.search('\?', master_dict[title]['Common Name'])) \
+                    and not (re.search('\?', this_dict[title]['Common Name'])):
+                master_dict[title]['Common Name'] = \
+                    this_dict[title]['Common Name']
         else:
             master_dict.update(this_dict)
-
-    # print(pretty_json(master_dict))
-    # return
 
     airtable_ids = {}
     airtable_records = airtable.iterate(table_name)
@@ -200,7 +205,10 @@ def main():
 
         upload = airtable.create(table_name, data=record)
         # TO DO: add try/except. If id line fails, print {name} failed.
-        print(f"uploaded: {upload['id']}, flickr name: {name}")
+        try:
+            print(f"uploaded: {upload['id']}, flickr name: {name}")
+        except KeyError:
+            print("FAILED TO UPLOAD: {}".format(record['Common Name']))
         time.sleep(.20)
 
 

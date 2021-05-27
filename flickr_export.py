@@ -66,7 +66,7 @@ def get_album_details(user_id, album_name: str):
 
 def get_album_photos_json(user_id, photoset_id, per_page=200, page=1):
     method = 'photosets.getPhotos'
-    extras_string = 'geo,url_o,date_taken,date_upload,last_update,tags'
+    extras_string = 'geo,url_s,date_taken,date_upload,last_update,tags'
     params = {"user_id": user_id, "photoset_id": photoset_id,
               "extras": extras_string, "per_page": str(per_page),
               "page": str(page)}
@@ -113,6 +113,8 @@ def create_album_output(run_date, album_name: str, backfill=False,
 
     album_id, album_title, album_num_photos, album_created, album_updated =\
         get_album_details(user_id, album_name)
+    print(album_id, album_title, album_num_photos, album_created, album_updated)
+
     photos_per_page = 200
     pages = (album_num_photos // photos_per_page)
     if photos_per_page * pages < album_num_photos:
@@ -144,13 +146,12 @@ def create_album_output(run_date, album_name: str, backfill=False,
     else:
         fresh_photos = list(filter(fresh, album_photos))
         for photo in fresh_photos:
-            titles.append(photo['title'])
+            titles.append(photo['title'].strip('?'))
         titles = set(titles)
-        filtered_photos = list(filter(lambda x: x['title'] in titles,
-                                      album_photos))
-
+        filtered_photos = list(filter(
+            lambda x: x['title'].strip('?') in titles, album_photos))
     clean_keys = ['datetaken', 'dateupload', 'id', 'lastupdate',
-                  'latitude', 'longitude', 'tags', 'title', 'url_o', 'flickr_url',
+                  'latitude', 'longitude', 'tags', 'title', 'url_s', 'flickr_url',
                   'description', 'google_map_url', 'coordinates']
     for photo in filtered_photos:
         if photo['lastupdate'] > album_latest_photo_update:
@@ -181,6 +182,10 @@ def create_album_output(run_date, album_name: str, backfill=False,
             photo['coordinates'] = ''
         clean_photo = {mykey: photo[mykey] for mykey in clean_keys}
         clean_photos.append(clean_photo)
+
+    # sort the photos by ID to force airtable details to come from first
+    clean_photos.sort(key=lambda x: x['id'])
+
     album['photos'] = clean_photos
     album['id'] = album_id
     album['title'] = album_title
