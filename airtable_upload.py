@@ -106,7 +106,7 @@ def main():
         original_title = photo['title']
         title = photo['title'].strip('?')  # group ?/non-? versions
         flickr_id = photo['id']
-        download_url = photo['url_s']
+        download_url = photo['url_m']
         flickr_description = photo['description']
         flickr_raw_tags = photo['tags']
         flickr_tags = flickr_raw_tags.split(' ')

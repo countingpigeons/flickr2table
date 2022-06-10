@@ -66,7 +66,7 @@ def get_album_details(user_id, album_name: str):
 
 def get_album_photos_json(user_id, photoset_id, per_page=200, page=1):
     method = 'photosets.getPhotos'
-    extras_string = 'geo,url_s,date_taken,date_upload,last_update,tags'
+    extras_string = 'geo,url_s,url_m,date_taken,date_upload,last_update,tags'
     params = {"user_id": user_id, "photoset_id": photoset_id,
               "extras": extras_string, "per_page": str(per_page),
               "page": str(page)}
@@ -150,8 +150,9 @@ def create_album_output(run_date, album_name: str, backfill=False,
         titles = set(titles)
         filtered_photos = list(filter(
             lambda x: x['title'].strip('?') in titles, album_photos))
+    # print(photo.get('url_m', 'url_s')
     clean_keys = ['datetaken', 'dateupload', 'id', 'lastupdate',
-                  'latitude', 'longitude', 'tags', 'title', 'url_s', 'flickr_url',
+                  'latitude', 'longitude', 'tags', 'title', 'url_m', 'flickr_url',
                   'description', 'google_map_url', 'coordinates']
     for photo in filtered_photos:
         if photo['lastupdate'] > album_latest_photo_update:
@@ -180,6 +181,9 @@ def create_album_output(run_date, album_name: str, backfill=False,
             photo['longitude'] = ''
             photo['google_map_url'] = ''
             photo['coordinates'] = ''
+
+        #  in case there is no medium-size photo, replace w/ small
+        photo['url_m'] = photo.get('url_m', photo['url_s'])
         clean_photo = {mykey: photo[mykey] for mykey in clean_keys}
         clean_photos.append(clean_photo)
 
