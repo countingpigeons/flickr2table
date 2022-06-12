@@ -25,12 +25,6 @@ from config import AirTableConfig
 import airtable as at
 
 
-apikey = AirTableConfig.apikey
-base_id = AirTableConfig.flora_base_id
-airtable = at.Airtable(base_id, apikey, dict)
-table_name = 'FLORA'
-
-
 def pretty_json(dict):
     pretty_string = json.dumps(dict, indent=2, sort_keys=True)
     return pretty_string
@@ -80,11 +74,26 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--album_name",
                         help="name as it appears in Flickr UI' "
-                        "(default \'Flora\')",
+                             "(default \'Flora\')",
                         default='Flora')
     parser.add_argument("--backfill", help="import all photos from album",
                         action="store_true")
+    parser.add_argument("--target_base",
+                        help="original or postcovid base "
+                             "(default \'postcovid\')",
+                        default="postcovid")
     args = parser.parse_args()
+
+    # Original airtable base ran out of room.
+    # Flowers first seen after transition date will go to new base.
+    apikey = AirTableConfig.apikey
+    if args.target_base == 'original':
+        base_id = AirTableConfig.flora_base_id
+    else:
+        base_id = AirTableConfig.flora_ii_base_id
+    airtable = at.Airtable(base_id, apikey, dict)
+    table_name = 'FLORA'
+    base_transition_date = '2022-06-01'
 
     directory = '/home/koya/datascience/flickr_to_airtable/flickr_exports/'
     file_name = f'flickr_album_{args.album_name}_{run_date}'
@@ -104,8 +113,9 @@ def main():
     master_dict = {}
     for photo in contents['photos']:
         original_title = photo['title']
-        title = photo['title'].strip('?')  # group ?/non-? versions
+        title = original_title.strip('?')  # group ?/non-? versions
         flickr_id = photo['id']
+        flickr_date_taken = photo['datetaken']
         download_url = photo['url_m']
         flickr_description = photo['description']
         flickr_raw_tags = photo['tags']
@@ -122,7 +132,7 @@ def main():
             'Image(s)': [{'url': download_url, 'filename': download_filename}],
             'Map Link': photo['google_map_url'],
             'Coordinates': photo['coordinates'],
-            'Date Seen': photo['datetaken'],
+            'Date Seen': flickr_date_taken,
             # Stop setting this large column (for space concerns)
             # 'Flickr_description': flickr_description,
             'Flickr Link': photo['flickr_url'],
@@ -132,7 +142,6 @@ def main():
 
         # Add all the dynamic Parsed tags
         parsed_tags = parse_description(flickr_description)
-        # parsed_tags = parse_description(this_dict[title]['Flickr_description'])
         this_dict[title].update(parsed_tags)
 
         if title in master_dict:
@@ -143,6 +152,7 @@ def main():
                 key=lambda x: (x['filename'], x['url']))
             if master_dict[title]['lowest_flickr_id'] > flickr_id:
                 master_dict[title]['lowest_flickr_id'] = flickr_id
+
             master_dict[title]['flickr_ids'].append(flickr_id)
             master_dict[title]['flickr_ids'].sort()
             master_dict[title]['flickr_id_to_use'] = '_'.join(
@@ -155,6 +165,17 @@ def main():
         else:
             master_dict.update(this_dict)
 
+# Only include data pre/post transition based on which base writing to.
+    if args.target_base == 'original':
+        master_dict = \
+            {title: columns for (title, columns) in master_dict.items()
+             if columns['Date Seen'] <= base_transition_date}
+    else:
+        master_dict = \
+            {title: columns for (title, columns) in master_dict.items()
+             if columns['Date Seen'] > base_transition_date}
+
+# Process in Airtable
     airtable_ids = {}
     airtable_records = airtable.iterate(table_name)
 
