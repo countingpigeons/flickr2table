@@ -93,7 +93,7 @@ def main():
         base_id = AirTableConfig.flora_ii_base_id
     airtable = at.Airtable(base_id, apikey, dict)
     table_name = 'FLORA'
-    base_transition_date = '2022-06-01'
+    base_transition_date = '2022-06-10'
 
     directory = '/home/koya/datascience/flickr_to_airtable/flickr_exports/'
     file_name = f'flickr_album_{args.album_name}_{run_date}'
